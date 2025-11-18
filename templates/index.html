@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="header">
+        <div class="emoji">🏥</div>
+        <h1>Health AI Assistant</h1>
+        <p>Your Personal AI Health Companion</p>
+    </div>
+
+    <div class="card">
+        <h2>Welcome!</h2>
+        <p>Get personalized health and wellness advice powered by advanced AI.</p>
+        
+        <h2>Features:</h2>
+        <ul style="padding-left: 20px; color: #666; margin-bottom: 20px;">
+            <li>Personalized workout recommendations</li>
+            <li>Diet and nutrition guidance</li>
+            <li>Sleep optimization tips</li>
+            <li>Supplement advice</li>
+            <li>24/7 access from any device</li>
+        </ul>
+
+        <p style="font-size: 14px; color: #999; border-top: 1px solid #eee; padding-top: 15px;">
+            <strong>Note:</strong> This app provides information only and is not medical advice. 
+            Always consult healthcare professionals for medical decisions.
+        </p>
+
+        <a href="/setup" class="btn">Get Started →</a>
+    </div>
+</div>
+{% endblock %}
+

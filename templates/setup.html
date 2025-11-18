@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="header">
+        <div class="emoji">🔑</div>
+        <h1>API Key Setup</h1>
+        <p>First, let's connect to OpenAI</p>
+    </div>
+
+    <div class="card">
+        <div id="errorMsg" class="error" style="display:none;"></div>
+        
+        <h2>You'll Need an OpenAI API Key</h2>
+        <p>This key allows the app to use AI to give you personalized advice.</p>
+
+        <div style="background: #f8f8f8; padding: 15px; border-radius: 10px; margin: 20px 0;">
+            <strong>How to Get Your API Key:</strong>
+            <ol style="padding-left: 20px; margin-top: 10px;">
+                <li>Visit <a href="https://platform.openai.com/api-keys" target="_blank" style="color: #667eea;">platform.openai.com/api-keys</a></li>
+                <li>Sign in or create an account</li>
+                <li>Click "Create new secret key"</li>
+                <li>Copy the key and paste below</li>
+            </ol>
+        </div>
+
+        <div class="form-group">
+            <label for="apiKey">Enter Your OpenAI API Key:</label>
+            <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off">
+            <div style="margin-top: 10px;">
+                <label style="font-weight: normal; cursor: pointer;">
+                    <input type="checkbox" id="showKey" style="width: auto; margin-right: 5px;">
+                    Show API key
+                </label>
+            </div>
+        </div>
+
+        <p style="font-size: 13px; color: #999;">
+            Your API key is stored securely in your browser session only. 
+            It's never saved on our servers.
+        </p>
+
+        <button class="btn" onclick="saveApiKey()">Continue →</button>
+
+        <div id="loader" class="loader" style="display:none;"></div>
+    </div>
+</div>
+
+<script>
+document.getElementById('showKey').addEventListener('change', function() {
+    const input = document.getElementById('apiKey');
+    input.type = this.checked ? 'text' : 'password';
+});
+
+async function saveApiKey() {
+    const apiKey = document.getElementById('apiKey').value.trim();
+    const errorMsg = document.getElementById('errorMsg');
+    const loader = document.getElementById('loader');
+    const btn = event.target;
+    
+    errorMsg.style.display = 'none';
+    
+    if (!apiKey) {
+        errorMsg.textContent = 'Please enter your API key';
+        errorMsg.style.display = 'block';
+        return;
+    }
+    
+    if (!apiKey.startsWith('sk-')) {
+        errorMsg.textContent = 'Invalid API key format. OpenAI keys start with "sk-"';
+        errorMsg.style.display = 'block';
+        return;
+    }
+    
+    btn.style.display = 'none';
+    loader.style.display = 'block';
+    
+    try {
+        const response = await fetch('/api/save-key', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ api_key: apiKey })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            window.location.href = '/survey';
+        } else {
+            errorMsg.textContent = data.error || 'Failed to validate API key';
+            errorMsg.style.display = 'block';
+            btn.style.display = 'block';
+            loader.style.display = 'none';
+        }
+    } catch (error) {
+        errorMsg.textContent = 'Network error. Please try again.';
+        errorMsg.style.display = 'block';
+        btn.style.display = 'block';
+        loader.style.display = 'none';
+    }
+}
+
+// Allow Enter key to submit
+document.getElementById('apiKey').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        saveApiKey();
+    }
+});
+</script>
+{% endblock %}
+

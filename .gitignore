@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+flask_sessions/
+user_data_web/
+user_data/
+.DS_Store
+*.spec
+build/
+dist/
+venv*/
+*.pdf
