@@ -8,10 +8,14 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 
 BASE_DIR = Path(__file__).parent
-DB_PATH = BASE_DIR / "user_data_web" / "users.db"
+USER_DATA_DIR = BASE_DIR / "user_data_web"
+DB_PATH = USER_DATA_DIR / "users.db"
 
 def init_db():
     """Initialize the database"""
+    # Ensure directory exists
+    USER_DATA_DIR.mkdir(exist_ok=True)
+    
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     
