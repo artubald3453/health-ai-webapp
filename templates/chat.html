@@ -204,18 +204,15 @@
 <div class="chat-container">
     <div class="chat-header">
         <h1>🏥 Health AI</h1>
-        <button class="menu-btn" onclick="showMenu()">Menu</button>
+        <div style="display: flex; gap: 10px;">
+            <button class="menu-btn" onclick="newChat()">➕ New</button>
+            <button class="menu-btn" onclick="showHistory()">💬 History</button>
+            <button class="menu-btn" onclick="showMenu()">☰</button>
+        </div>
     </div>
 
     <div class="chat-messages" id="messages">
-        <div class="message assistant">
-            <div class="message-bubble">
-                Hello! I'm your personal health AI assistant. I have access to your health profile 
-                and can help you with personalized workout recommendations, diet planning, and health advice.
-                <br><br>
-                How can I help you today?
-            </div>
-        </div>
+        <!-- Messages will be loaded here -->
     </div>
 
     <div class="chat-input-container">
@@ -258,8 +255,49 @@
     </div>
 </div>
 
+<div class="modal" id="historyModal">
+    <div class="modal-content">
+        <span class="close-modal" onclick="closeHistory()">&times;</span>
+        <h2>Chat History</h2>
+        <div id="historyContent" style="max-height: 400px; overflow-y: auto;">
+            <p style="text-align: center; color: #999;">Loading...</p>
+        </div>
+        <button class="btn btn-secondary" onclick="closeHistory()" style="margin-top: 20px;">Close</button>
+    </div>
+</div>
+
 <script>
 let isLoading = false;
+
+async function loadExistingMessages() {
+    try {
+        const response = await fetch('/api/get-messages');
+        const data = await response.json();
+        
+        if (data.success && data.messages && data.messages.length > 0) {
+            // Clear messages container
+            document.getElementById('messages').innerHTML = '';
+            
+            // Add all previous messages
+            for (const msg of data.messages) {
+                addMessage(msg.content, msg.role === 'user' ? 'user' : 'assistant');
+            }
+        } else {
+            // Show welcome message if no history
+            addMessage(
+                "Hello! I'm your personal health AI assistant. I have access to your health profile and can help you with personalized workout recommendations, diet planning, and health advice.\n\nHow can I help you today?",
+                'assistant'
+            );
+        }
+    } catch (error) {
+        // Show welcome message on error
+        addMessage(
+            "Hello! I'm your personal health AI assistant. How can I help you today?",
+            'assistant'
+        );
+    }
+}
+
 
 function handleKeyPress(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -376,8 +414,79 @@ function closeProfile() {
     document.getElementById('profileModal').style.display = 'none';
 }
 
+async function newChat() {
+    if (!confirm('Start a new chat? (Current chat will be saved)')) return;
+    
+    try {
+        const response = await fetch('/api/new-chat', { method: 'POST' });
+        const data = await response.json();
+        
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Failed to start new chat');
+        }
+    } catch (error) {
+        alert('Failed to start new chat');
+    }
+}
+
+async function showHistory() {
+    try {
+        const response = await fetch('/api/chat-history');
+        const data = await response.json();
+        
+        if (data.success) {
+            const historyContent = document.getElementById('historyContent');
+            
+            if (data.chats.length === 0) {
+                historyContent.innerHTML = '<p style="text-align: center; color: #999;">No saved chats yet</p>';
+            } else {
+                let html = '';
+                for (const chat of data.chats) {
+                    const date = chat.created_at.slice(0,8);
+                    const time = chat.created_at.slice(9,15);
+                    const dateStr = `${date.slice(4,6)}/${date.slice(6,8)}/${date.slice(0,4)} ${time.slice(0,2)}:${time.slice(2,4)}`;
+                    
+                    html += `
+                        <div style="background: #f8f8f8; padding: 15px; border-radius: 10px; margin-bottom: 10px; cursor: pointer;" 
+                             onclick="loadChat('${chat.id}')">
+                            <div style="font-weight: bold; color: #333; margin-bottom: 5px;">${chat.title}</div>
+                            <div style="font-size: 12px; color: #999;">${dateStr}</div>
+                        </div>
+                    `;
+                }
+                historyContent.innerHTML = html;
+            }
+            
+            document.getElementById('historyModal').style.display = 'block';
+        }
+    } catch (error) {
+        alert('Failed to load chat history');
+    }
+}
+
+function closeHistory() {
+    document.getElementById('historyModal').style.display = 'none';
+}
+
+async function loadChat(chatId) {
+    try {
+        const response = await fetch(`/api/load-chat/${chatId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Failed to load chat');
+        }
+    } catch (error) {
+        alert('Failed to load chat');
+    }
+}
+
 async function clearChat() {
-    if (!confirm('Clear all messages?')) return;
+    if (!confirm('Clear all messages and start a new chat? (Current chat will be saved)')) return;
     
     try {
         await fetch('/api/clear-chat', { method: 'POST' });
@@ -392,6 +501,11 @@ function logout() {
         window.location.href = '/logout';
     }
 }
+
+// Reload user when page loads (ensures current_user is fresh)
+window.addEventListener('DOMContentLoaded', function() {
+    loadExistingMessages();
+});
 
 // Auto-resize textarea
 document.getElementById('messageInput').addEventListener('input', function() {

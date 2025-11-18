@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="header">
+        <div class="emoji">🎉</div>
+        <h1>Create Account</h1>
+        <p>Join Health AI Assistant</p>
+    </div>
+
+    <div class="card">
+        <div id="errorMsg" class="error" style="display:none;"></div>
+        <div id="successMsg" class="success" style="display:none;"></div>
+        
+        <form id="signupForm" onsubmit="signup(event)">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" required autocomplete="email">
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" required minlength="8" autocomplete="new-password">
+                <p style="font-size: 12px; color: #999; margin-top: 5px;">
+                    Minimum 8 characters
+                </p>
+            </div>
+
+            <div class="form-group">
+                <label for="confirmPassword">Confirm Password</label>
+                <input type="password" id="confirmPassword" required autocomplete="new-password">
+            </div>
+
+            <button type="submit" class="btn">Create Account</button>
+            <div id="loader" class="loader" style="display:none;"></div>
+        </form>
+
+        <p style="text-align: center; margin-top: 20px;">
+            Already have an account? 
+            <a href="/login" style="color: #667eea; font-weight: 600;">Login</a>
+        </p>
+    </div>
+</div>
+
+<script>
+async function signup(e) {
+    e.preventDefault();
+    
+    const errorMsg = document.getElementById('errorMsg');
+    const loader = document.getElementById('loader');
+    const btn = e.target.querySelector('button[type="submit"]');
+    
+    errorMsg.style.display = 'none';
+    
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    
+    if (password !== confirmPassword) {
+        errorMsg.textContent = 'Passwords do not match';
+        errorMsg.style.display = 'block';
+        return;
+    }
+    
+    if (password.length < 8) {
+        errorMsg.textContent = 'Password must be at least 8 characters';
+        errorMsg.style.display = 'block';
+        return;
+    }
+    
+    btn.style.display = 'none';
+    loader.style.display = 'block';
+    
+    try {
+        const response = await fetch('/api/signup', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Auto-login after signup
+            window.location.href = '/setup';
+        } else {
+            errorMsg.textContent = data.error || 'Signup failed';
+            errorMsg.style.display = 'block';
+            btn.style.display = 'block';
+            loader.style.display = 'none';
+        }
+    } catch (error) {
+        errorMsg.textContent = 'Network error. Please try again.';
+        errorMsg.style.display = 'block';
+        btn.style.display = 'block';
+        loader.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}
+

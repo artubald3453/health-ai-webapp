@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="header">
+        <div class="emoji">👋</div>
+        <h1>Welcome Back</h1>
+        <p>Login to your Health AI account</p>
+    </div>
+
+    <div class="card">
+        <div id="errorMsg" class="error" style="display:none;"></div>
+        
+        <form id="loginForm" onsubmit="login(event)">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" required autocomplete="email">
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" required autocomplete="current-password">
+            </div>
+
+            <button type="submit" class="btn">Login</button>
+            <div id="loader" class="loader" style="display:none;"></div>
+        </form>
+
+        <p style="text-align: center; margin-top: 20px;">
+            Don't have an account? 
+            <a href="/signup" style="color: #667eea; font-weight: 600;">Sign up</a>
+        </p>
+    </div>
+</div>
+
+<script>
+async function login(e) {
+    e.preventDefault();
+    
+    const errorMsg = document.getElementById('errorMsg');
+    const loader = document.getElementById('loader');
+    const btn = e.target.querySelector('button[type="submit"]');
+    
+    errorMsg.style.display = 'none';
+    btn.style.display = 'none';
+    loader.style.display = 'block';
+    
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    
+    try {
+        const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            window.location.href = '/chat';
+        } else {
+            errorMsg.textContent = data.error || 'Login failed';
+            errorMsg.style.display = 'block';
+            btn.style.display = 'block';
+            loader.style.display = 'none';
+        }
+    } catch (error) {
+        errorMsg.textContent = 'Network error. Please try again.';
+        errorMsg.style.display = 'block';
+        btn.style.display = 'block';
+        loader.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}
+

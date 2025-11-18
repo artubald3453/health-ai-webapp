@@ -9,3 +9,7 @@ build/
 dist/
 venv*/
 *.pdf
+.api_key
+*.key
+.env
+*.db
