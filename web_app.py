@@ -18,8 +18,15 @@ app = Flask(__name__)
 # Use environment variable for production, random for development
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(16))
 
-# Configure server-side sessions
-SESSION_DIR = Path(__file__).parent / 'flask_sessions'
+# Data directory
+BASE_DIR = Path(__file__).parent
+USER_DATA_DIR = BASE_DIR / "user_data_web"
+USER_DATA_DIR.mkdir(exist_ok=True)
+CHATS_DIR = USER_DATA_DIR / "chats"
+CHATS_DIR.mkdir(exist_ok=True)
+
+# Configure server-side sessions (inside user_data_web)
+SESSION_DIR = USER_DATA_DIR / 'sessions'
 SESSION_DIR.mkdir(exist_ok=True)
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SESSION_FILE_DIR'] = SESSION_DIR
@@ -41,7 +48,6 @@ login_manager.session_protection = "strong"
 # Initialize database
 db.init_db()
 
-
 class User(UserMixin):
     def __init__(self, id, email, api_key=None, profile=None):
         self.id = id
@@ -61,13 +67,6 @@ def load_user(user_id):
             profile=user_data['profile']
         )
     return None
-
-# Data directory
-BASE_DIR = Path(__file__).parent
-USER_DATA_DIR = BASE_DIR / "user_data_web"
-USER_DATA_DIR.mkdir(exist_ok=True)
-CHATS_DIR = USER_DATA_DIR / "chats"
-CHATS_DIR.mkdir(exist_ok=True)
 
 # Prompt ID from your saved prompt
 PROMPT_ID = "pmpt_691a13bdf574819486553f3f13926e8606a7ec11e234cf1f"
