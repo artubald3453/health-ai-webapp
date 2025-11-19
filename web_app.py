@@ -19,15 +19,24 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(16))
 
 # Configure server-side sessions
+SESSION_DIR = Path(__file__).parent / 'flask_sessions'
+SESSION_DIR.mkdir(exist_ok=True)
 app.config['SESSION_TYPE'] = 'filesystem'
-app.config['SESSION_FILE_DIR'] = Path(__file__).parent / 'flask_sessions'
-app.config['SESSION_FILE_DIR'].mkdir(exist_ok=True)
+app.config['SESSION_FILE_DIR'] = SESSION_DIR
+app.config['SESSION_PERMANENT'] = True
+app.config['SESSION_USE_SIGNER'] = True
+app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
+app.config['REMEMBER_COOKIE_DURATION'] = 86400  # 24 hours
+app.config['SESSION_COOKIE_SECURE'] = True  # HTTPS only
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 Session(app)
 
 # Configure Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+login_manager.session_protection = "strong"
 
 # Initialize database
 db.init_db()
@@ -108,8 +117,15 @@ def api_signup():
         return jsonify({'success': False, 'error': 'Email already registered'})
     
     # Auto-login after signup
-    user = User(id=user_id, email=email)
-    login_user(user)
+    user_data = db.get_user(user_id)
+    user = User(
+        id=user_data['id'],
+        email=user_data['email'],
+        api_key=user_data['api_key'],
+        profile=user_data['profile']
+    )
+    login_user(user, remember=True)
+    session.permanent = True
     
     return jsonify({'success': True})
 
@@ -136,7 +152,8 @@ def api_login():
         api_key=user_data['api_key'],
         profile=user_data['profile']
     )
-    login_user(user)
+    login_user(user, remember=True)
+    session.permanent = True
     
     return jsonify({'success': True})
 

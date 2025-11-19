@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 flask_sessions/
+flask_session/
 user_data_web/
 user_data/
 .DS_Store
