@@ -3,9 +3,10 @@ Health AI Assistant - Web Application
 A mobile-friendly web version accessible from any device
 """
 
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file
 from flask_session import Session
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from werkzeug.utils import secure_filename
 import os
 from pathlib import Path
 from datetime import datetime
@@ -13,6 +14,7 @@ import json
 from openai import OpenAI
 import secrets
 import database as db
+from PyPDF2 import PdfReader
 
 app = Flask(__name__)
 # Use environment variable for production, random for development
@@ -24,6 +26,21 @@ USER_DATA_DIR = BASE_DIR / "user_data_web"
 USER_DATA_DIR.mkdir(exist_ok=True)
 CHATS_DIR = USER_DATA_DIR / "chats"
 CHATS_DIR.mkdir(exist_ok=True)
+PDFS_DIR = USER_DATA_DIR / "user_pdfs"
+PDFS_DIR.mkdir(exist_ok=True)
+
+# File upload configuration
+ALLOWED_EXTENSIONS = {'pdf'}
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def get_user_pdf_dir(user_id):
+    """Get or create user's PDF directory"""
+    user_dir = PDFS_DIR / str(user_id)
+    user_dir.mkdir(exist_ok=True)
+    return user_dir
 
 # Configure server-side sessions (inside user_data_web)
 SESSION_DIR = USER_DATA_DIR / 'sessions'
@@ -290,6 +307,10 @@ def chat_api():
         context += "- The Longevity Paradox\n"
         context += "- Blue Zones Study Guide\n"
         
+        # Add user's uploaded PDFs to context
+        pdfs_context = get_user_pdfs_context(current_user.id)
+        context += pdfs_context
+        
         # Build full message with context
         full_message = f"{context}\n\nUser Question: {user_message}"
         
@@ -465,6 +486,139 @@ def logout_route():
     logout_user()
     session.clear()
     return redirect(url_for('index'))
+
+
+def extract_text_from_pdf(pdf_path):
+    """Extract text from PDF file"""
+    try:
+        reader = PdfReader(pdf_path)
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text() + "\n"
+        return text
+    except Exception as e:
+        return f"Error reading PDF: {str(e)}"
+
+
+@app.route('/api/upload-pdf', methods=['POST'])
+@login_required
+def upload_pdf():
+    """Upload a PDF file"""
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file provided'})
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({'success': False, 'error': 'No file selected'})
+    
+    if not allowed_file(file.filename):
+        return jsonify({'success': False, 'error': 'Only PDF files are allowed'})
+    
+    try:
+        # Check file size
+        file.seek(0, os.SEEK_END)
+        file_size = file.tell()
+        file.seek(0)
+        
+        if file_size > MAX_FILE_SIZE:
+            return jsonify({'success': False, 'error': 'File too large (max 10MB)'})
+        
+        # Save file
+        filename = secure_filename(file.filename)
+        user_pdf_dir = get_user_pdf_dir(current_user.id)
+        
+        # Add timestamp to filename to avoid conflicts
+        name, ext = os.path.splitext(filename)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        unique_filename = f"{name}_{timestamp}{ext}"
+        
+        filepath = user_pdf_dir / unique_filename
+        file.save(filepath)
+        
+        # Extract text for preview
+        text = extract_text_from_pdf(filepath)
+        preview = text[:200] + "..." if len(text) > 200 else text
+        
+        return jsonify({
+            'success': True,
+            'filename': unique_filename,
+            'original_name': file.filename,
+            'preview': preview
+        })
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Upload failed: {str(e)}'})
+
+
+@app.route('/api/list-pdfs')
+@login_required
+def list_pdfs():
+    """List user's uploaded PDFs"""
+    try:
+        user_pdf_dir = get_user_pdf_dir(current_user.id)
+        pdfs = []
+        
+        for pdf_file in user_pdf_dir.glob("*.pdf"):
+            pdfs.append({
+                'filename': pdf_file.name,
+                'size': pdf_file.stat().st_size,
+                'uploaded': datetime.fromtimestamp(pdf_file.stat().st_mtime).isoformat()
+            })
+        
+        # Sort by upload date (newest first)
+        pdfs.sort(key=lambda x: x['uploaded'], reverse=True)
+        
+        return jsonify({'success': True, 'pdfs': pdfs})
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/delete-pdf/<filename>', methods=['DELETE'])
+@login_required
+def delete_pdf(filename):
+    """Delete a PDF file"""
+    try:
+        # Security: ensure filename is safe
+        safe_filename = secure_filename(filename)
+        user_pdf_dir = get_user_pdf_dir(current_user.id)
+        filepath = user_pdf_dir / safe_filename
+        
+        if not filepath.exists():
+            return jsonify({'success': False, 'error': 'File not found'})
+        
+        filepath.unlink()
+        return jsonify({'success': True})
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+def get_user_pdfs_context(user_id):
+    """Get text content from all user's PDFs for AI context"""
+    try:
+        user_pdf_dir = get_user_pdf_dir(user_id)
+        context = "\n\nUSER'S UPLOADED HEALTH DOCUMENTS:\n\n"
+        
+        pdf_files = list(user_pdf_dir.glob("*.pdf"))
+        
+        if not pdf_files:
+            return ""
+        
+        for pdf_file in pdf_files:
+            context += f"\n--- Document: {pdf_file.name} ---\n"
+            text = extract_text_from_pdf(pdf_file)
+            # Limit to first 2000 chars per PDF to avoid context overflow
+            context += text[:2000]
+            if len(text) > 2000:
+                context += "\n[...document continues...]"
+            context += "\n\n"
+        
+        return context
+    
+    except Exception as e:
+        return f"\nError loading documents: {str(e)}\n"
 
 
 if __name__ == '__main__':

@@ -233,15 +233,19 @@
         <h2>Menu</h2>
         
         <button class="btn" onclick="viewProfile()" style="margin-top: 10px;">
-            View Profile
+            👤 View Profile
+        </button>
+        
+        <button class="btn" onclick="showPDFs()" style="margin-top: 10px;">
+            📄 My Documents
         </button>
         
         <button class="btn btn-secondary" onclick="clearChat()">
-            Clear Chat
+            🗑️ Clear Chat
         </button>
         
         <button class="btn btn-secondary" onclick="logout()">
-            Logout
+            🚪 Logout
         </button>
     </div>
 </div>
@@ -263,6 +267,29 @@
             <p style="text-align: center; color: #999;">Loading...</p>
         </div>
         <button class="btn btn-secondary" onclick="closeHistory()" style="margin-top: 20px;">Close</button>
+    </div>
+</div>
+
+<div class="modal" id="pdfsModal">
+    <div class="modal-content">
+        <span class="close-modal" onclick="closePDFs()">&times;</span>
+        <h2>📄 My Health Documents</h2>
+        
+        <div style="margin: 20px 0;">
+            <input type="file" id="pdfUpload" accept=".pdf" style="display: none;" onchange="uploadPDF(event)">
+            <button class="btn" onclick="document.getElementById('pdfUpload').click()" style="width: 100%;">
+                ➕ Upload PDF Document
+            </button>
+            <p style="font-size: 12px; color: #999; margin-top: 5px;">
+                Upload medical records, research papers, or health documents (max 10MB)
+            </p>
+        </div>
+        
+        <div id="pdfsList" style="max-height: 300px; overflow-y: auto;">
+            <p style="text-align: center; color: #999;">Loading...</p>
+        </div>
+        
+        <button class="btn btn-secondary" onclick="closePDFs()" style="margin-top: 20px; width: 100%;">Close</button>
     </div>
 </div>
 
@@ -499,6 +526,120 @@ async function clearChat() {
 function logout() {
     if (confirm('Are you sure you want to logout?')) {
         window.location.href = '/logout';
+    }
+}
+
+async function showPDFs() {
+    closeMenu();
+    document.getElementById('pdfsModal').style.display = 'block';
+    await loadPDFs();
+}
+
+function closePDFs() {
+    document.getElementById('pdfsModal').style.display = 'none';
+}
+
+async function loadPDFs() {
+    try {
+        const response = await fetch('/api/list-pdfs');
+        const data = await response.json();
+        
+        const pdfsList = document.getElementById('pdfsList');
+        
+        if (data.success && data.pdfs.length > 0) {
+            let html = '';
+            for (const pdf of data.pdfs) {
+                const size = (pdf.size / 1024 / 1024).toFixed(2);
+                const date = new Date(pdf.uploaded).toLocaleDateString();
+                
+                html += `
+                    <div style="background: #f8f8f8; padding: 15px; border-radius: 10px; margin-bottom: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <div style="flex: 1;">
+                                <div style="font-weight: bold; color: #333; margin-bottom: 5px;">📄 ${pdf.filename}</div>
+                                <div style="font-size: 12px; color: #999;">${size} MB • ${date}</div>
+                            </div>
+                            <button onclick="deletePDF('${pdf.filename}')" 
+                                    style="background: #ff4444; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 12px;">
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+            pdfsList.innerHTML = html;
+        } else {
+            pdfsList.innerHTML = '<p style="text-align: center; color: #999;">No documents uploaded yet. Upload your first health document!</p>';
+        }
+    } catch (error) {
+        console.error('Error loading PDFs:', error);
+        document.getElementById('pdfsList').innerHTML = '<p style="text-align: center; color: #ff4444;">Error loading documents</p>';
+    }
+}
+
+async function uploadPDF(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    if (file.size > 10 * 1024 * 1024) {
+        alert('File too large! Maximum size is 10MB.');
+        return;
+    }
+    
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+        alert('Only PDF files are allowed!');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+        // Show uploading message
+        const pdfsList = document.getElementById('pdfsList');
+        pdfsList.innerHTML = '<p style="text-align: center; color: #667eea;">📤 Uploading...</p>';
+        
+        const response = await fetch('/api/upload-pdf', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(`✅ ${file.name} uploaded successfully!\n\nNow I can reference this document when answering your health questions.`);
+            await loadPDFs();
+        } else {
+            alert('Upload failed: ' + (data.error || 'Unknown error'));
+            await loadPDFs();
+        }
+    } catch (error) {
+        alert('Upload failed: ' + error.message);
+        await loadPDFs();
+    }
+    
+    // Reset file input
+    event.target.value = '';
+}
+
+async function deletePDF(filename) {
+    if (!confirm(`Delete ${filename}?`)) return;
+    
+    try {
+        const response = await fetch(`/api/delete-pdf/${encodeURIComponent(filename)}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Document deleted');
+            await loadPDFs();
+        } else {
+            alert('Delete failed: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Delete failed: ' + error.message);
     }
 }
 
